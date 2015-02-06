@@ -6,7 +6,7 @@ require "sinatra/redirect_with_flash"
 require "json"
 require "yaml"
 require "rack-google-analytics"
-
+require "webrick"
 enable :sessions
 
 use Rack::Flash, :sweep => true
