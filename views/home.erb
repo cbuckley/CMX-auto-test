@@ -24,6 +24,7 @@
 			<th>Complete</th>
 			<th>State</th>
 			<th>Delete?</th>
+			<th>Map</th>
  		</tr>
 	</thead>
 
@@ -43,6 +44,7 @@
 			<td><%=h test[:complete] %></td>
 			<td><%=h test[:state] %></td>
 			<td><span><a href="/<%=h test[:id] %>/delete">delete</a></span></td>
+			<td><span><a href="/<%=h test[:id] %>/map">Map</a></span></td>
 		</tr>
 <% end %>
 	</tbody>

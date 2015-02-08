@@ -8,6 +8,7 @@ require "yaml"
 require "rack-google-analytics"
 require "data_mapper"
 require "webrick"
+require "oj"
 enable :sessions
 
 use Rack::Flash, :sweep => true
@@ -20,7 +21,7 @@ HOSTNAME = CONFIG['hostname']
 PORT = CONFIG['port']
 
 set :session_secret, CONFIG['session_secret']
-
+set :js, layout => false
 use Rack::GoogleAnalytics, :tracker => CONFIG['tracker']
 
 puts "Setting up server at #{HOSTNAME}:#{PORT} with the SECRET #{SECRET}"
@@ -72,6 +73,7 @@ DB.create_table? :clients do # Create the clients table if not exists
 end
 
 Sequel::Model.plugin :validation_helpers
+Sequel::Model.plugin :json_serializer, :naked => true #This ensures that we can convert to JSON  
 class Client < Sequel::Model
 	def before_create
 		self.updated_at = Time.now
@@ -79,6 +81,7 @@ class Client < Sequel::Model
 	def before_save
 		self.updated_at = Time.now
 	end
+	plugin :serialization, :json, :permissions
 end
 class Test < Sequel::Model
 	def validate
@@ -181,14 +184,15 @@ post "/data/:id" do
 			map['data']['observations'].each do |c|
 				next if c['location'] == nil # We only want to store locations
 				cl = Client.first(:mac => c['clientMac']) || Client.new
-				loc = c['location'];
+				loc = c['location']
 				cl.mac = c['clientMac']
 				cl.lat = loc['lat']
 				cl.lng = loc['lng']
-				cl.unc = c['unc']
+				cl.unc = loc['unc']
 				cl.seenString = c['seenTime']
 				cl.seenMillis = c['seenEpoch']
-				cl.floors = map['data']['apFloors'] == nil ? "" : map['data']['apFloors'].join #If this is empty then we store a string otherwise we concatonate them.
+#				cl.floors = map['data']['apFloors'] == nil ? "" : map['data']['apFloors'].join #If this is empty then we store a string otherwise we concatonate them.
+				cl.floors = "";
 				cl.manufacturer = c['manufacturer']
 				cl.os = cl.os = c['os']
 				cl.test = currentTest
@@ -206,6 +210,13 @@ get "/" do
 	if @tests.empty?
 		flash[:notice] = "No pending tests found. Add your first below."
 	end
+	@additional_js = '
+        <script>
+                $(document).ready( function () {
+                        $("#all_tests").DataTable();
+                });
+        </script>
+	'
 	erb :home
 end
 
@@ -296,6 +307,39 @@ get "/:id/complete" do
 		redirect "/", :error => "Error marking test as complete."
 	end
 end
+#Go to map
+get "/:id/map" do
+	id = params[:id]
+	@test = Test.first(:id => params[:id])
+	if @test
+		@title = "Map for test ##{params[:id]}"
+		@additional_js = "
+			<script src=\"https://maps.googleapis.com/maps/api/js?v=3.exp&sensor=false\"></script>
+			<script type=\"text/javascript\" src=\"/#{id}/mapjs\"></script>
+		"
+		erb :map
+	else
+		redirect "/", :error => "Error selecting test"
+	end
+end
+#Make sure that the map can get the right ID
+get '/:id/mapjs' do
+	@testid = params[:id]
+	content_type :js
+	erb :mapjs, :layout=>false
+end
+#Get client
+get '/:id/clients/:mac' do
+  	mac = params[:mac]
+	puts "Request name is #{mac}"
+	content_type :json
+	client = Client.first(:mac => mac, :test =>params[:id])
+	logger.info("Retrieved client #{client}")
+	client != nil ? JSON.generate(client) : "{}"
+end
 
-
+get '/:id/clients/' do
+	content_type :json
+	clients = Client.filter(:test => params[:id]).to_json
+end
 

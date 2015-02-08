@@ -1,27 +1,24 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf8">
-  <title><%= "#{@title} | #{SITE_TITLE}" %></title>
-  <link href="/reset.css" rel="stylesheet">
-  <link href="/style.css" rel="stylesheet">
+	<meta charset="utf8">
+	<title><%= "#{@title} | #{SITE_TITLE}" %></title>
+	<link href="/sample.css" rel="stylesheet">
+	<link rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.10.2/css/jquery.dataTables.css">
+	<script type="text/javascript"  src="//code.jquery.com/jquery-1.11.2.min.js"></script>
+	<script type="text/javascript" charset="utf8" src="//cdn.datatables.net/1.10.2/js/jquery.dataTables.js"></script>
+	<%= "#{@additional_js}" %>
 </head>
 <body>
-<!-- DataTables CSS -->
-<link rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.10.2/css/jquery.dataTables.css">
-  
-<!-- jQuery -->
-<script type="text/javascript" charset="utf8" src="//code.jquery.com/jquery-1.10.2.min.js"></script>
-  
-<!-- DataTables -->
-<script type="text/javascript" charset="utf8" src="//cdn.datatables.net/1.10.2/js/jquery.dataTables.js"></script>
-<script> $(document).ready( function () {                                                                                                                                                                    
-  $('#all_tests').DataTable();                                                                                                                                                                      
-} );  </script>
+<div id="masthead">
+      <div id="masthead-content">
+        <img src="https://meraki.cisco.com/img/cisco-meraki.png"/>
+      </div>
+    </div>
+
   <header>
     <hgroup>
       <h1><a href="/"><%= SITE_TITLE %></a></h1>
-      <h2><%= SITE_DESCRIPTION %></h2>
     </hgroup>
   </header>
  
@@ -37,7 +34,7 @@
   </div>
  
   <footer>
-    <p><small>An app for <a href="http://meraki.cisco.com">Cisco Meraki Support</a>.</small></p>
+    <span>An app for <a href="http://meraki.cisco.com">Cisco Meraki Support</a>.</span>
   </footer>
 </body>
 </html>
