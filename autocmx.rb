@@ -6,9 +6,8 @@ require "sinatra/redirect_with_flash"
 require "json"
 require "yaml"
 require "rack-google-analytics"
-require "data_mapper"
-require "webrick"
-require "oj"
+require "logger"
+
 enable :sessions
 
 use Rack::Flash, :sweep => true
@@ -20,11 +19,15 @@ SECRET = CONFIG['secret']
 HOSTNAME = CONFIG['hostname']
 PORT = CONFIG['port']
 
+# Create a log file instead of just printing to output
+log = Logger.new(CONFIG['log_file'],5, 1024000)
+
 set :session_secret, CONFIG['session_secret']
 set :js, layout => false
 use Rack::GoogleAnalytics, :tracker => CONFIG['tracker']
 
 puts "Setting up server at #{HOSTNAME}:#{PORT} with the SECRET #{SECRET}"
+log.info("Server is set up at #{HOSTNAME}:#{PORT} with the SECRET=#{SECRET}")
 
 
 db = "sqlite://#{Dir.pwd}/cmxtests.db"
@@ -107,8 +110,21 @@ helpers do
 	alias_method :h, :escape_html
 end
 
+def authorized?
+  @auth ||= Rack::Auth::Basic::Request.new(request.env)
+  @auth.provided? && @auth.basic? && @auth.credentials && @auth.credentials == [CONFIG['login'], CONFIG['password']]
+end
+
+def protected!
+  unless authorized?
+    response['WWW-Authenticate'] = %(Basic realm="Restricted Area")
+    throw(:halt, [401, "You shall not pass.\n"])
+  end
+end
+
 # List all Tests
 get "/list" do
+  protected!
 	@tests = DB[:tests]
 	@title = "All Tests"
 	if @tests.empty?
@@ -143,6 +159,7 @@ post "/data/:id" do
 		if map == nil # We were not able to parse the post data
 			request.body.rewind
 			logger.warn "#{params[:id]} Could not parse POST body #{request.body.read}"
+			log.warn("#{params[:id]} *** Could not parse POST body #{request.body.read}")
 			n.state = "bad_post"
 			n.save
 			return
@@ -150,6 +167,7 @@ post "/data/:id" do
 
 		if map['secret'] != n.secret #Secret does not match the one in the test
 			logger.warn "#{params[:id]} Got post with bad secret: #{map['secret']}"
+			log.warn("#{params[:id]} *** bad secret #{map['secret']}")
 			n.state = "bad_secret"
 			n.save
 			return
@@ -165,6 +183,7 @@ post "/data/:id" do
 			data = map['data'].to_s #V2 stores data in data	
 		else #API Version that we dont know about
 			logger.warn "#{params[:id]} Got post with unknown API version: #{map['version']}"
+			log.warn("#{params[:id]} *** Test #{params[:id]} -- Unknown API version: #{map['version']}")
 			n.api = map['version']
 			n.state = "bad_api"
 			n.save
@@ -172,6 +191,7 @@ post "/data/:id" do
 		end
 
 		logger.info "#{params[:id]} Post data are (First 100 characters): #{data[0, 99]}#"
+		log.info("#{params[:id]} Post data -- (First 100 characters): #{data[0, 99]}#")
 		n.state = "complete"
 		n.complete = true
 		n.save #Save the post
@@ -201,11 +221,14 @@ post "/data/:id" do
 		else
 			logger.info "Received data for test #{params[:id]}, but don't have that configured"
 		end
+	else
+		log.error("***** Data recieved for unconfigured test #{params[:id]}")
 	end
 end
 # Home Page
 get "/" do 
-@tests = DB[:tests]
+  protected!
+	@tests = DB[:tests]
 	@title = "All Tests"
 	if @tests.empty?
 		flash[:notice] = "No pending tests found. Add your first below."
@@ -222,6 +245,7 @@ end
 
 # Post a test
 post "/" do
+  protected!
 	n = Test.new
 	n.secret = params[:secret] ? params[:secret] : SECRET
 	n.validator = params[:content]
@@ -237,11 +261,12 @@ post "/" do
 	else
 		flash[:error] = "Unable to save test, please make sure you fill out all fields"
     redirect "/"
-	end
+  end
 end
 
 # Edit a test -- get
 get "/:id/edit" do 
+  protected!
 	@test = Test.first(:id => params[:id])
 	@title = "Edit test ##{params[:id]}"
 	if @test
@@ -253,6 +278,7 @@ end
 
 # Edit a test -- post
 post "/:id/edit" do
+  protected!
 	n = Test.first(:id => params[:id])
 	unless n
 		redirect "/", :error => "Can't find that test."
@@ -273,6 +299,7 @@ end
 
 # Delete a test -- get
 get "/:id/delete" do
+  protected!
 	@test = Test.first(:id => params[:id])
 	@title = "Confirm deletion of test ##{params[:id]}"
 	if @test
@@ -284,9 +311,11 @@ end
 
 # Delete a test -- delete
 delete "/:id" do 
+  protected!
 	n = Test.first(:id => params[:id])
 	if n.destroy
 		redirect "/", :notice => "Test deleted successfully."
+		log.info("Test #{:id} was deleted")
 	else
 		redirect "/", :error => "Error deleting Test."
 	end
@@ -294,6 +323,7 @@ end
 
 # Mark a Test complete -- get
 get "/:id/complete" do
+  protected!
 	n = Test.first(:id => params[:id])
 	unless n
 		redirect "/", :error => "Can't find that test."
